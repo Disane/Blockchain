@@ -9,7 +9,7 @@ function Blockchain(){
 
 /*
     Genesis Block
-
+*/
 function Blockchain(){
     this.chain = [];
     this.pendingTransactions = [];
@@ -17,7 +17,7 @@ function Blockchain(){
     // Create genesis block 
     // add 100 Bitcoin
     this.createNewBlock(100,'0','0');
-}*/
+}
 
 Blockchain.prototype.createNewBlock = function(nonce, previousBlockHash, hash){
     const newBlock = {
