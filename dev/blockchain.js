@@ -1,9 +1,13 @@
 const sha256 = require('sha256');
+const currentNodeUrl = process.argv[3];
 
 /* DataStructure without the genesis block
 function Blockchain(){
     this.chain = [];
     this.pendingTransactions = [];
+
+    this.currentNodeUrl = currentNodeUrl;
+    this.networkNodes = [];
 }
 */
 
@@ -13,6 +17,9 @@ function Blockchain(){
 function Blockchain(){
     this.chain = [];
     this.pendingTransactions = [];
+
+    this.currentNodeUrl = currentNodeUrl;
+    this.networkNodes = [];
 
     // Create genesis block 
     // add 100 Bitcoin
@@ -63,7 +70,7 @@ Blockchain.prototype.proofOfWork = function(previousBlockHash, currentBlockData)
     while(hash.substr(0,4) !== '0000'){
         nonce++;
         hash = this.hashBlock(previousBlockHash, currentBlockData, nonce);
-        console.log(hash);
+        // console.log(hash);
     }
 
     return nonce;
