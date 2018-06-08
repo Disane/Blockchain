@@ -1,18 +1,14 @@
 const sha256 = require('sha256');
 const currentNodeUrl = process.argv[3];
+const uuid = require('uuid/v1');
 
-/* DataStructure without the genesis block
-function Blockchain(){
-    this.chain = [];
-    this.pendingTransactions = [];
-
-    this.currentNodeUrl = currentNodeUrl;
-    this.networkNodes = [];
-}
+/* 
+    Notes:
+    started implementing network decentralization mechanics
 */
 
 /*
-    Genesis Block
+    Blockchain Data Structure with a Genesis Block
 */
 function Blockchain(){
     this.chain = [];
@@ -50,11 +46,15 @@ Blockchain.prototype.createNewTransaction = function(amount, sender, recipient){
     const newTransaction = {
         amount: amount,
         sender: sender,
-        recipient: recipient
+        recipient: recipient,
+        transactionId: uuid().split('-').join('')
     };
 
-    this.pendingTransactions.push(newTransaction);
+    return newTransaction;
+}
 
+Blockchain.prototype.addTransactionToPendingTransactions = function(transactionObj){
+    this.pendingTransactions.push(transactionObj);
     return this.getLastBlock()['index'] + 1;
 }
 

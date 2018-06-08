@@ -25,10 +25,36 @@ app.get('/blockchain', function (req, res) {
 });
 
 app.post('/transaction', function (req, res) {
-  /*console.log(req.body);
-  res.send(`The amount of the transaction is ${req.body.amount} bitcoin`);*/
-  const blockindex = bitcoin.createNewTransaction(req.body.amount, req.body.sender, req.body.recipient);
-  res.json({ note: `Transaction will be added in block ${blockindex}.`});
+  const newTransaction = req.body;
+  const blockIndex = bitcoin.addTransactionToPendingTransactions(newTransaction);
+  
+  res.json({ note: `Transaction will be added in block ${blockIndex}`});
+});
+
+app.post('/transaction/broadcast', function(req, res){
+  const newTransaction = bitcoin.createNewTransaction(req.body.amount, req.body.sender, req.body.recipient);
+  bitcoin.addTransactionToPendingTransactions(newTransaction);
+
+  const requestPromises = [];
+  bitcoin.networkNodes.forEach(networkNodeUrl =>{
+    const requestOptions = {
+      uri: networkNodeUrl + '/transaction',
+      method: 'POST',
+      body: newTransaction,
+      json: true
+    }
+
+    requestPromises.push(rp(requestOptions));
+  });
+  // collect all transactions and send them asynchronously
+  Promise.all(requestPromises)
+  .then(data =>{
+    res.json({ note: 'Transaction created and broadcast successfully!'});
+  })
+  .catch(error => {
+    assert(error, '/transaction/broadcast Promise error');
+    console.error('/transaction/broadcast' + error);
+  });
 });
 
 app.get('/mine', function (req, res) {
@@ -49,23 +75,95 @@ app.get('/mine', function (req, res) {
   const blockHash = bitcoin.hashBlock(previousBlockHash, currentBlockData, nonce);
 
   // '00' address as a sender is always the mining reward system
-  bitcoin.createNewTransaction(12.5, "00", nodeAddress);
+  // bitcoin.createNewTransaction(12.5, "00", nodeAddress);
 
+  // newly mined block ready
   const newBlock = bitcoin.createNewBlock(nonce, previousBlockHash, blockHash);
 
-  res.json({
-    note: "New block mined successfully!",
-    block: newBlock
+  // broadcast newly mined block
+  const requestPromises = [];
+  bitcoin.networkNodes.forEach(networkNodeUrl => {
+    const requestOptions = {
+      uri: networkNodeUrl + '/receive-new-block',
+      method: 'POST',
+      body: {newBlock: newBlock },
+      json: true
+    }
+
+    requestPromises.push(rp(requestOptions));
   });
 
+  // asynchronosly process all promises
+  Promise.all(requestPromises)
+  .then(data => {
+    // create mining reward transaction
+    const requestOptions = {
+      uri: bitcoin.currentNodeUrl + '/transaction/broadcast',
+      method: 'POST',
+      body:{
+        amount: 12.5,
+        sender: "00",
+        recipient: nodeAddress
+      },
+      json: true
+    };
+
+    // return promise request
+    return rp(requestOptions);
+  }).catch(error => {
+    assert(error, '/mine Promise error');
+    console.error('/mine Promise error' + error);
+  })
+  .then(data => {
+    res.json({
+      note: "New block mined and broadcast successfully!",
+      block: newBlock
+    });
+  }).catch(error => {
+    assert(error, '/mine Promise error');
+    console.error('/mine Promise error' + error);
+  });
 });
+
+// new endpoint to handle receiving blocks
+app.post('/receive-new-block', function(req, res){
+  const newBlock = req.body.newBlock;
+  const lastBlock = bitcoin.getLastBlock();
+  // check if the hashes line up properly
+  const correctHash = lastBlock.hash === newBlock.previousBlockHash;
+  // check if the indexes line up properly
+  const correctIndex = lastBlock['index'] + 1 === newBlock['index'];
+
+  // process block check
+  if(correctHash && correctIndex){
+    bitcoin.chain.push(newBlock);
+    bitcoin.pendingTransactions = [];
+    
+    res.json({ 
+      note:"new block received and accepted!" ,
+      newBlock: newBlock
+    });
+  }
+  else
+  {
+    res.json({ 
+      note: "new block rejected!",
+      newBlock: newBlock
+    });
+  }
+});
+
 
 // register a node and broadcast it to the network
 app.post('/register-and-broadcast-node', function(req, res){
   const newNodeUrl = req.body.newNodeUrl;
 
-  // add new node url if it doesn't exist yet
-  if(bitcoin.networkNodes.indexOf(newNodeUrl) == -1){
+  // TODO: Check if this is a bug! 
+  //       We are basically adding a new node to the network nodes on the current node
+  //       without checking if the target node url is actually our own
+  //       Is this a bug or a feature?
+  if((bitcoin.networkNodes.indexOf(newNodeUrl) == -1) && // if the new URL doesn't exist on this node yet
+     (bitcoin.currentNodeUrl !== newNodeUrl)){ // if the new URL is not the exact same URL of the current node
     bitcoin.networkNodes.push(newNodeUrl);
   }
 
@@ -120,6 +218,7 @@ app.post('/register-node', function(req, res){
   // check if we are dealing with the last url
   const notCurrentNode = bitcoin.currentNodeUrl !== newNodeUrl;
 
+  // console.log('/register-node bitcoin.currentNodeUrl: ' + bitcoin.currentNodeUrl + ", newNodeUrl: " + newNodeUrl);
   if(nodeNotAlreadyPresent && notCurrentNode){
     bitcoin.networkNodes.push(newNodeUrl);
   }
@@ -130,11 +229,12 @@ app.post('/register-node', function(req, res){
 // register more than one node
 app.post('/register-nodes-bulk', function(req, res){
   const allNetworkNodes = req.body.allNetworkNodes;
-  allNetworkNodes.forEach(networkNodeUrl =>{
+  allNetworkNodes.forEach( networkNodeUrl => {
     // check if url is already part of the network
     const nodeNotAlreadyPresent = bitcoin.networkNodes.indexOf(networkNodeUrl) == -1;
     // check if we are trying to add the current network as a new one
     const notCurrentNode = bitcoin.currentNodeUrl !== networkNodeUrl;
+    // console.log('/register-nodes-bulk bitcoin.currentNodeUrl: ' + bitcoin.currentNodeUrl + ", networkNodeUrl: " + networkNodeUrl);
     if(nodeNotAlreadyPresent && notCurrentNode){
       bitcoin.networkNodes.push(networkNodeUrl);
     }
