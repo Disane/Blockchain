@@ -129,6 +129,7 @@ app.get('/mine', function (req, res) {
 app.post('/receive-new-block', function(req, res){
   const newBlock = req.body.newBlock;
   const lastBlock = bitcoin.getLastBlock();
+
   // check if the hashes line up properly
   const correctHash = lastBlock.hash === newBlock.previousBlockHash;
   // check if the indexes line up properly
@@ -241,6 +242,74 @@ app.post('/register-nodes-bulk', function(req, res){
   });
 
   res.json({ note: "Bulk registration successful!" });
+});
+
+// acquires all blockchains from all the nodes connected to the network
+// checks which node stores the longest valid blockchain
+// TODO: check if we can oprimize this endpoint
+//       we might not need: maxChainLength and we could replace that with newLongestChain.length
+app.get('/concensus', function(req, res){
+  const requestPromises = [];
+
+  // acquire all blockchains on the network using their blockchain endpoint
+  bitcoin.networkNodes.forEach(networkNodeUrl => {
+    const requestOptions = {
+      uri: networkNodeUrl + '/blockchain',
+      method: 'GET',
+      json: true
+    };
+
+    requestPromises.push(rp(requestOptions));
+  });
+
+  Promise.all(requestPromises)
+  .then(blockchains => {
+    const currentChainLength = bitcoin.chain.length;
+    let maxChainLength = currentChainLength;
+    let newLongestChain = null;
+    let newPendingTransactions = null;
+
+    // find the longest blockchain on the network
+    blockchains.forEach(blockchain => {
+      // console.log("/concensus : checking blockchain on " + blockchain.currentNodeUrl);
+      if(blockchain.chain.length > maxChainLength){
+        maxLongestChain = blockchain.chain.length;
+        newLongestChain = blockchain.chain;
+        newPendingTransactions = blockchain.pendingTransactions;
+        /*console.log("/concensus : found longer blockchain!");
+        if(bitcoin.chainIsValid(newLongestChain))
+        {
+          console.log('VALID\n');
+        }
+        else{
+          console.log('INVALID\n');
+        }*/
+      }
+    });
+
+    // now we check the results
+
+    // if there is no new longest chain on the network or there is one but it is invalid
+    if( !newLongestChain || (newLongestChain && !bitcoin.chainIsValid(newLongestChain)) ) {
+      // we stick to our own blockchain
+      res.json({
+        note: "Current chain has not been replaced",
+        chain: bitcoin.chain
+      });
+    }
+    // if there is a longer valid chain on the network
+    //else if(newLongestChain && bitcoin.chainIsValid(newLongestChain)) 
+    else
+    {
+      // we replace our own blockchain with the newly found one
+      bitcoin.chain = newLongestChain;
+      bitcoin.pendingTransactions = newPendingTransactions;
+      res.json({
+        note: "This chain has been replaced.",
+        chain: bitcoin.chain
+      });
+    }
+  });
 });
 
 // start server at the specified port
