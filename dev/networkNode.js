@@ -312,6 +312,44 @@ app.get('/concensus', function(req, res){
   });
 });
 
+// search for a block that has the specified hash
+// :blockhash is an input to the end point
+app.get('/block/:blockHash', function(req, res){ // localhost:30001/block/<hash>
+  const blockHash = req.params.blockHash;
+  const correctBlock = bitcoin.getBlock(blockHash);
+  res.json({
+    block: correctBlock
+  });
+});
+
+// search for a transaction based on its transaction id
+// :transactionId is an input to the end point
+app.get('/transaction/:transactionId', function(req, res){
+  const transactionId = req.params.transactionId;
+  const transactionData = bitcoin.getTransaction(transactionId);
+
+  // check for null objects before printing this debug message otherwise it crashes the App
+  /*if(transactionData.transaction && transactionData.block){
+    console.log(`Endpoint /transaction/:transactionId -> Transaction ID ${transactionData.transaction.transactionId} hash: ${transactionData.block.hash}`);
+  }*/
+  res.json({
+    "transaction": transactionData.transaction,
+    "block": transactionData.block
+  });
+});
+
+app.get('/address/:address', function(req, res){
+  const address = req.params.address;
+  const addressData = bitcoin.getAddressData(address);
+  res.json({
+    addressData: addressData
+  });
+});
+
+app.get('/blockexplorer', function(req, res){
+  res.sendFile('./block-explorer/index.html', {root: __dirname});
+});
+
 // start server at the specified port
 app.listen(port, function(){
   console.log(`listening on port ${port}...`);

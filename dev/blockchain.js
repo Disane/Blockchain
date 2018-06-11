@@ -137,4 +137,135 @@ Blockchain.prototype.chainIsValid = function(blockchain){
     return true;
 };
 
+// returns the block if the provided blockHash exists
+Blockchain.prototype.getBlock = function(blockHash){
+    let correctBlock = null;
+    // console.log("Blockchain.getBlock: looking for hash: " + blockHash);
+    // PROBLEM:
+    //  return on forEach doesn't work!
+    //  we should probably switch this out with a proper for loop!
+    //  another solution is to break the callback loop using an exception:
+    var BreakException = {};
+    try
+    {
+        this.chain.forEach(block => {
+            // console.log(`checking #${block.index} with hash: ${block.hash}`);
+            if(block.hash === blockHash)
+            {
+                correctBlock = block;
+                // console.log("Blockchain.getBlock: found hash!");
+                // return when done 
+                throw BreakException;
+            }
+        });
+    }
+    catch(e)
+    {
+        if(e !== BreakException) {
+            throw e;
+        }
+    }
+    // if(correctBlock){console.log(`Blockchain.getBlock: Returning block for hash ${correctBlock.hash}`);}else{console.log(`Blockchain.getBlock: could not find block for hash ${blockHash}`);}
+    return correctBlock;
+};
+
+// PROBLEM:
+    //  return on forEach doesn't work!
+    //  we should probably switch this out with a proper for loop!
+    //  another solution is to break the callback loop using an exception:
+    // PROBLEM 2: thorwing an exception here results in an error that throws [Object object] to the endpoint request
+    //              possible solution would be to reformulate the code as a nested for loop
+    //var BreakException = {};
+    //try
+    //{
+        /*this.chain.forEach(block => {
+            console.log("inside chain.forEach");
+            block.transactions.forEach(transaction => {
+                console.log("inside transactions.forEach");
+                if(transaction.transactionId === transactionId)
+                {
+                    console.log("found transaction!");
+                    console.log("found block!");
+                    correctTransaction = transaction;
+                    correctBlock = block;
+                    //throw BreakException;
+                }
+            });
+        });*/
+    //}
+    /*catch(e)
+    {
+        if(e === BreakException) throw e;
+    }*/
+// look up transaction object and block in which the transaction is stored based on the transaction ID
+Blockchain.prototype.getTransaction = function(transactionId)
+{
+    if(transactionId == null)
+    {
+        console.log("Blockchain.getTransaction: No transactionId or null was passed!");
+        return {
+            "transaction": null,
+            "block": null 
+        }
+    }
+
+    //console.log("Blockchain.getTransaction: looking for transactionId: " + transactionId);
+
+    // an optimized version of the linear transaction search algorithm
+    // this one breaks the search once the items have been found
+    // speeding up the search
+    for(let b=0; b < this.chain.length; b++){
+        // iterate over all blocks in the chain
+        //console.log("inside chain for loop");
+        for(let t=0; t < this.chain[b].transactions.length; t++){
+            //console.log("inside transactions for loop");
+            if(this.chain[b].transactions[t].transactionId === transactionId)
+            {
+                /*console.log("found transaction!");
+                console.log("found block!");*/
+                return {
+                    "transaction": this.chain[b].transactions[t],
+                    "block": this.chain[b]
+                };
+            }
+        }
+    }
+    
+    return {
+        "transaction": null,
+        "block": null
+    };
+};
+
+// find the all transactions of an address as well as its current balance baced on 
+// whether it was a recipient or a sender in the conducted transactions
+Blockchain.prototype.getAddressData = function(address){
+    const addressTransactions = [];
+    this.chain.forEach(block => {
+        block.transactions.forEach(transaction => {
+            if(transaction.sender === address || transaction.recipient === address)
+            {
+                addressTransactions.push(transaction);
+            }
+        });
+    });
+
+    let balance = 0;
+    addressTransactions.forEach(transaction => {
+        if(transaction.recipient === address)
+        {
+            balance += transaction.amount;
+        }
+        else if(transaction.sender === address)
+        {
+            balance -= transaction.amount;
+        }
+    });
+    
+    return{
+        addressTransactions: addressTransactions,
+        addressBalance: balance
+    };
+};
+
 module.exports = Blockchain;
