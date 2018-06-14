@@ -14,7 +14,7 @@ The code is based on Eric Traub's Udemy course:
 https://www.udemy.com/build-a-blockchain-in-javascript
 
 # TODO:
->Before you implement the end points for your wallet Web or Mobile App make sure that you complete all the improvements that are suggested by Eric at the end of this course. 
+Before you implement the end points for your wallet Web or Mobile App make sure that you complete all the improvements that are suggested by Eric at the end of this course. 
 
 >>1. Transactions need to check whether the provided address has at least the amount of cryptocurrency assigned to it before proceeding.
 
